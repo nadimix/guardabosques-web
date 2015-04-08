@@ -1,9 +1,11 @@
 var express = require('express');
 var router = express.Router();
+var debug = require('debug')('server:files');
 
 /* GET users listing. */
 router.get('/', function(req, res, next) {
   res.json(files);
+  debug(JSON.stringify(files));
 });
 
 router.param('id', function(req, res, next, id) {
@@ -17,6 +19,7 @@ router.param('id', function(req, res, next, id) {
 
 router.get('/:id', function(req, res, next) {
 	res.json(req.file);
+	debug(JSON.stringify(req.file));
 });
 
 var files = [
