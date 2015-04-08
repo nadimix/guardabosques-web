@@ -15,6 +15,12 @@ router.param('id', function(req, res, next, id) {
 			next();
 		}
 	})
+
+	if(!req.file) {
+		var err = new Error('Not Found');
+  	err.status = 404;
+  	next(err);
+	}
 });
 
 router.get('/:id', function(req, res, next) {
