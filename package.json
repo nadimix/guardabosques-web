@@ -1,5 +1,5 @@
 {
-  "name": "http-partials-server",
+  "name": "guardabosque",
   "version": "1.0.0",
   "description": "A server that handles HTTP GET with ranges thanks to a descriptor in json.",
   "private": true,
