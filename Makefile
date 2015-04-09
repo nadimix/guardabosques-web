@@ -1,7 +1,7 @@
 REPORTER = spec
 
 lint:
-	./node_modules/.bin/jshint ./app.js
+	./node_modules/.bin/jshint ./app.js ./routes/*
 
 start:
 	@NODE_ENV=production ./bin/www
