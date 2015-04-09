@@ -3,6 +3,8 @@ body {
   font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
 }
 
-a {
+a, .resource_link {
   color: #00B7FF;
+  text-decoration: underline;
+  cursor: pointer;
 }

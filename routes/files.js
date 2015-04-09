@@ -34,15 +34,15 @@ var files = [
 		name: "Sintel HD 1080p",
 		candidates: [
 			{
-				url: "http://ftp.nluug.nl/pub/graphics/blender/demo/movies/Sintel.2010.1080p.mkv",
+				url: "http://localhost:4001/videos/Sintel.2010.1080p.mkv",
 				priority: 0
 			},
 			{
-				url: "http://ftp.halifax.rwth-aachen.de/blender/demo/movies/Sintel.2010.1080p.mkv",
+				url: "http://localhost:4002/videos/Sintel.2010.1080p.mkv",
 				priority: 1
 			},
 			{
-				url: "http://download.blender.org/demo/movies/Sintel.2010.1080p.mkv",
+				url: "http://localhost:4003/videos/Sintel.2010.1080p.mkv",
 				priority: 2
 			}
 		],
@@ -52,15 +52,15 @@ var files = [
 		name: "Sintel HD 720p",
 		candidates: [
 			{
-				url: "http://ftp.nluug.nl/pub/graphics/blender/demo/movies/Sintel.2010.720p.mkv",
+				url: "http://localhost:4001/videos/Sintel.2010.720p.mkv",
 				priority: 1
 			},
 			{
-				url: "http://ftp.halifax.rwth-aachen.de/blender/demo/movies/Sintel.2010.720p.mkv",
+				url: "http://localhost:4002/videos/Sintel.2010.720p.mkv",
 				priority: 2
 			},
 			{
-				url: "http://download.blender.org/demo/movies/Sintel.2010.720p.mkv",
+				url: "http://localhost:4003/videos/Sintel.2010.720p.mkv",
 				priority: 0
 			}
 		],
