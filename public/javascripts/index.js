@@ -6,10 +6,12 @@
   });
 
   function clickResource() {
-    $('#resource > span').click(function(){
+    $('#resource > span').click(function(event){
+      event.preventDefault();
       var resourceID =  $(this).attr('id');
       console.log(resourceID);
-      guardabosques(resourceID);
+      var url = '/files/' + resourceID;
+      guardabosques(url);
     });
   }
 })();

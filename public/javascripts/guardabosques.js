@@ -1,21 +1,30 @@
 'use strict';
 
-function guardabosques(resourceID) {
+function guardabosques(url) {
   $(document).ready(function() {
-    resourceHandler(resourceID);
+    resourceHandler(url);
   });
 }
 
-function resourceHandler(resourceID) {
+// Resource fetch from a LB
+function resourceHandler(url) {
   $.support.cors = true;
   $.ajax({
     type: 'GET',
-    url: '/files/' + resourceID,
+    url: url,
     success: function(data) {
-      resources = data;
-      console.log(JSON.stringify(resources));
+      var resource = data;
+      console.log(JSON.stringify(resource));
     },
     dataType: 'json',
     async: true
   });
 }
+// End resource fetch
+
+// Chunk download logic
+function downloadHandler(resource) {
+  var concurrency = resource.concurrency;
+
+}
+// end chunck download logic
