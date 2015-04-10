@@ -2,6 +2,7 @@ module.exports = [
   {
     id: "1b305d585b1918f297164add46784116",
     name: "ubuntu-14.04.2-desktop-amd64.iso",
+    concurrency: 2,
     segments: [
       {
         digest: '0dad187e760636d11563b452f2d0a642',
