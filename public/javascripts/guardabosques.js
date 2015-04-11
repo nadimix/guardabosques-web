@@ -7,8 +7,6 @@ var helper = {
   chunks: []
 };
 
-var queue = [];
-
 function guardabosques(url) {
   $(document).ready(function () {
     resourceHandler(url);
@@ -36,8 +34,6 @@ function resourceHandler(url) {
 function downloadHandler(resource) {
   setHelper(resource);
   console.log('helper: ' + JSON.stringify(helper));
-  setQueue(helper);
-  console.log('queue: ' + queue);
   downloadFile(helper);
 }
 // End download handler
@@ -56,15 +52,15 @@ function downloadFile(helper) {
 
   // IndexedDB connection handlers
   connect.onerror = function(event) {
-    console.log("Error creating/accessing IndexedDB database");
+    console.error("Error creating/accessing IndexedDB database");
   };
 
   connect.onsuccess = function(event) {
-    console.log("Success creating/accessing IndexedDB database");
+    console.info("Success creating/accessing IndexedDB database");
 
     database = connect.result;
     database.onerror = function (event) {
-      console.log("Error creating/accessing IndexedDB database");
+      console.error("Error creating/accessing IndexedDB database");
     };
 
     // Provisional solution for Chrome using objectStore instead. Will be deprecated
@@ -102,7 +98,6 @@ function downloadFile(helper) {
     var numChunks = chunks.length;
     var chunkId = chunk.digest;
     var numCandidates = chunk.candidates.length;
-    console.log('id: ' + chunkId);
 
     // Create XHR
     var xhr = new XMLHttpRequest();
@@ -117,14 +112,6 @@ function downloadFile(helper) {
         if(checkChunkIntegrity(contentLength, blob.size, url)) {
           // Put the received blob into IndexedDB
           putChunkInDB(blob, chunkId);
-          console.log('Retrieving the next chunk if any');
-          currentChunk = currentChunk + 1;
-          console.log('currentChunk: ' + currentChunk + ' numChunks ' + numChunks);
-          if(currentChunk < numChunks) {
-            getChunkFile(chunks, maxRetries, currentChunk);
-          } else {
-            console.log('Download finished');
-          }
         } else {
           if(chunk.retries < maxRetries && numCandidates >= maxRetries ) {
             chunk.retries = chunk.retries + 1;
@@ -148,7 +135,7 @@ function downloadFile(helper) {
 
   function checkChunkIntegrity(contentLength, blobSize, url) {
     if (Number(blobSize) === Number(contentLength)) {
-      console.log('chunk '+url+' retrieved successfully');
+      console.info('chunk '+url+' retrieved successfully');
       return true;
     } else {
       return false;
@@ -156,23 +143,29 @@ function downloadFile(helper) {
   }
 
   function putChunkInDB(blob, index) {
-    console.log("Putting chunks in IndexedDB");
-
     // Open a transaction to the database
     var readWriteMode = typeof IDBTransaction.READ_WRITE == "undefined" ? "readwrite" : IDBTransaction.READ_WRITE;
-    var transaction = database.transaction([objectStore], readWriteMode);
-
-    // Put the blob into the database
-    console.log('index: ' + index);
-    var put = transaction.objectStore(objectStore).put(blob, index);
+    var transaction = database.transaction([objectStore], readWriteMode).objectStore(objectStore).put(blob, index);
     // TODO add event handler when insert is complete or not.
+    transaction.onsuccess = function(event) {
+      console.info('Transaction: ' +index+ ' success');
+      console.info('Retrieving the next chunk if any');
+        currentChunk = currentChunk + 1;
+        if(currentChunk < numChunks) {
+          getChunkFile(chunks, maxRetries, currentChunk);
+        } else {
+          console.info('Download finished');
+        }
+    }
+    transaction.onerror = function(event) {
+      console.error('Transaction: ' +index+ ' failed');
+    }
   }
 }
 
 // Setters
 function setHelper(resource) {
-  helper.concurrency = resource.concurrency || 2;
-  helper.maxRetries = resource.numRetries || 2; // TODO
+  helper.maxRetries = resource.numRetries || 2;
   helper.id = resource.id;
   var chunks = resource.segments;
   chunks.forEach(function (chunk) {
@@ -183,12 +176,6 @@ function setHelper(resource) {
       candidates: chunk.candidates
     }
     helper.chunks.push(file);
-  });
-}
-
-function setQueue(helper) {
-  helper.chunks.forEach(function (chunk) {
-    queue.push(chunk.candidates[0]);
   });
 }
 // End setters
