@@ -111,7 +111,22 @@ function downloadFile(helper) {
         var blob = xhr.response;
         if(checkChunkIntegrity(contentLength, blob.size, url)) {
           // Put the received blob into IndexedDB
-          putChunkInDB(blob, chunkId);
+          var readWriteMode = typeof IDBTransaction.READ_WRITE == "undefined" ? "readwrite" : IDBTransaction.READ_WRITE;
+          var transaction = database.transaction([objectStore], readWriteMode).objectStore(objectStore).put(blob, chunkId);
+          // TODO add event handler when insert is complete or not.
+          transaction.onsuccess = function(event) {
+            console.info('Transaction: ' +chunkId+ ' success');
+            console.info('Retrieving the next chunk if any');
+            currentChunk = currentChunk + 1;
+            if(currentChunk < numChunks) {
+              getChunkFile(chunks, maxRetries, currentChunk);
+            } else {
+              console.info('Download finished');
+            }
+          }
+          transaction.onerror = function(event) {
+            console.error('Transaction: ' +chunkId+ ' failed');
+          }
         } else {
           if(chunk.retries < maxRetries && numCandidates >= maxRetries ) {
             chunk.retries = chunk.retries + 1;
@@ -139,26 +154,6 @@ function downloadFile(helper) {
       return true;
     } else {
       return false;
-    }
-  }
-
-  function putChunkInDB(blob, index) {
-    // Open a transaction to the database
-    var readWriteMode = typeof IDBTransaction.READ_WRITE == "undefined" ? "readwrite" : IDBTransaction.READ_WRITE;
-    var transaction = database.transaction([objectStore], readWriteMode).objectStore(objectStore).put(blob, index);
-    // TODO add event handler when insert is complete or not.
-    transaction.onsuccess = function(event) {
-      console.info('Transaction: ' +index+ ' success');
-      console.info('Retrieving the next chunk if any');
-        currentChunk = currentChunk + 1;
-        if(currentChunk < numChunks) {
-          getChunkFile(chunks, maxRetries, currentChunk);
-        } else {
-          console.info('Download finished');
-        }
-    }
-    transaction.onerror = function(event) {
-      console.error('Transaction: ' +index+ ' failed');
     }
   }
 }
