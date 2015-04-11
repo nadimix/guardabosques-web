@@ -32,36 +32,27 @@ function resourceHandler(url) {
 }
 // End resource fetch
 
-// Download handler
+/** Download handler **/
 function downloadHandler(resource) {
   setHelper(resource);
   console.log('helper: ' + JSON.stringify(helper));
   setQueue(helper);
   console.log('queue: ' + queue);
-
-
-
-  // TODO gestionar queue (downloadFile(url, index))
-  var i = 0;
-  queue.forEach(function(url) {
-    console.log('helper id: ' + helper.id);
-    downloadFile(url, helper.id, i);
-    i++;
-  });
+  downloadFile(helper);
 }
 // End download handler
 
 // Downloads a single file into a blob
-function downloadFile(url, id, index) {
+function downloadFile(helper) {
   var indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB || window.OIndexedDB || window.msIndexedDB;
   var IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.OIDBTransaction || window.msIDBTransaction;
   var dbVersion = 1.0;
 
   var database;
-  var dbName = 'guardabosques';
+  var dbName = 'guardabosques_' + Date.now();
 
   var connect = indexedDB.open(dbName, dbVersion);
-  var objectStore = id;
+  var objectStore = helper.id;
 
   // IndexedDB connection handlers
   connect.onerror = function(event) {
@@ -82,15 +73,15 @@ function downloadFile(url, id, index) {
         var setVersion = database.setVersion(dbVersion);
         setVersion.onsuccess = function () {
           createObjectStore(database);
-          getChunkFile(url, index);
+          getChunkFile(helper.chunks, helper.maxRetries, 0);
         };
       }
       else {
-        getChunkFile(url, index);
+        getChunkFile(helper.chunks, helper.maxRetries, 0);
       }
     }
     else {
-      getChunkFile(url, index);
+      getChunkFile(helper.chunks, helper.maxRetries, 0);
     }
   };
 
@@ -105,42 +96,67 @@ function downloadFile(url, id, index) {
       database.createObjectStore(objectStore);
   }
 
-  function getChunkFile(url, index) {
+  function getChunkFile(chunks, maxRetries, currentChunk) {
+    var chunk = chunks[currentChunk];
+    var url = chunk.candidates[chunk.retries];
+    var numChunks = chunks.length;
+    var chunkId = chunk.digest;
+    var numCandidates = chunk.candidates.length;
+    console.log('id: ' + chunkId);
+
     // Create XHR
     var xhr = new XMLHttpRequest();
-
     xhr.open("GET", url, true);
     xhr.responseType = "blob";
 
-    xhr.addEventListener("load", function () {
-      if (xhr.status === 200) {
-        console.log('chunk retrieved');
-        var contentLength = xhr.getResponseHeader('Content-Length')
-
-        // Blob as response
+    // When start downloading
+    xhr.onload = function(event) {
+      if(xhr.status === 200) {
+        var contentLength = xhr.getResponseHeader('Content-Length');
         var blob = xhr.response;
-        console.log('Blob: ' + blob);
-
-        var blobSize = blob.size;
-        if (Number(blobSize) === Number(contentLength)) {
-          console.log('chunk '+url+' retrieved successfully');
+        if(checkChunkIntegrity(contentLength, blob.size, url)) {
           // Put the received blob into IndexedDB
-          putChunkInDB(blob, index);
+          putChunkInDB(blob, chunkId);
+          console.log('Retrieving the next chunk if any');
+          currentChunk = currentChunk + 1;
+          console.log('currentChunk: ' + currentChunk + ' numChunks ' + numChunks);
+          if(currentChunk < numChunks) {
+            getChunkFile(chunks, maxRetries, currentChunk);
+          } else {
+            console.log('Download finished');
+          }
         } else {
-          // TODO handle retransmision
-          console.log('chunk '+url+' retrieve failed, start retransmision');
+          if(chunk.retries < maxRetries && numCandidates >= maxRetries ) {
+            chunk.retries = chunk.retries + 1;
+            getChunkFile(chunks, maxRetries, currentChunk);
+          } else {
+          console.error('chunk cannot be downloaded');
+          }
         }
       } else {
-        // TODO handle retransmision
-        console.log('chunk '+url+' retrieve failed, start retransmision');
+        if(chunk.retries < maxRetries) {
+          chunk.retries = chunk.retries + 1;
+          getChunkFile(chunks, maxRetries, currentChunk);
+        } else {
+          console.error('chunk reached maxRetries');
+        }
       }
-    }, false);
+    };
     // Send XHR
     xhr.send();
   }
 
+  function checkChunkIntegrity(contentLength, blobSize, url) {
+    if (Number(blobSize) === Number(contentLength)) {
+      console.log('chunk '+url+' retrieved successfully');
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   function putChunkInDB(blob, index) {
-    console.log("Putting elephants in IndexedDB");
+    console.log("Putting chunks in IndexedDB");
 
     // Open a transaction to the database
     var readWriteMode = typeof IDBTransaction.READ_WRITE == "undefined" ? "readwrite" : IDBTransaction.READ_WRITE;
@@ -149,6 +165,7 @@ function downloadFile(url, id, index) {
     // Put the blob into the database
     console.log('index: ' + index);
     var put = transaction.objectStore(objectStore).put(blob, index);
+    // TODO add event handler when insert is complete or not.
   }
 }
 
