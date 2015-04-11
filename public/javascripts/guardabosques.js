@@ -2,7 +2,8 @@
 
 var helper = {
   concurrency: 2,
-  numRetries: 2,
+  maxRetries: 2,
+  id: '',
   chunks: []
 };
 
@@ -22,7 +23,7 @@ function resourceHandler(url) {
     url: url,
     success: function(data) {
       var resource = data;
-      console.log(JSON.stringify(resource));
+      console.log('json: ' + JSON.stringify(resource));
       downloadHandler(resource);
     },
     dataType: 'json',
@@ -34,29 +35,33 @@ function resourceHandler(url) {
 // Download handler
 function downloadHandler(resource) {
   setHelper(resource);
-  console.log(JSON.stringify(helper));
+  console.log('helper: ' + JSON.stringify(helper));
   setQueue(helper);
-  console.log(queue);
+  console.log('queue: ' + queue);
+
+
 
   // TODO gestionar queue (downloadFile(url, index))
   var i = 0;
   queue.forEach(function(url) {
-    downloadFile(url, i);
+    console.log('helper id: ' + helper.id);
+    downloadFile(url, helper.id, i);
     i++;
   });
 }
 // End download handler
 
 // Downloads a single file into a blob
-function downloadFile(url, index) {
+function downloadFile(url, id, index) {
   var indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB || window.OIndexedDB || window.msIndexedDB;
   var IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.OIDBTransaction || window.msIDBTransaction;
   var dbVersion = 1.0;
 
   var database;
+  var dbName = 'guardabosques';
 
-  var connect = indexedDB.open("guardabosquesDB2", dbVersion);
-  var objectStore = 'chunks';
+  var connect = indexedDB.open(dbName, dbVersion);
+  var objectStore = id;
 
   // IndexedDB connection handlers
   connect.onerror = function(event) {
@@ -77,17 +82,14 @@ function downloadFile(url, index) {
         var setVersion = database.setVersion(dbVersion);
         setVersion.onsuccess = function () {
           createObjectStore(database);
-          console.log('true');
           getChunkFile(url, index);
         };
       }
       else {
-        console.log('true');
         getChunkFile(url, index);
       }
     }
     else {
-      console.log('true');
       getChunkFile(url, index);
     }
   };
@@ -100,8 +102,6 @@ function downloadFile(url, index) {
 
   // Create/open database
   function createObjectStore (database) {
-      // Create an objectStore
-      console.log("Creating objectStore")
       database.createObjectStore(objectStore);
   }
 
@@ -110,19 +110,29 @@ function downloadFile(url, index) {
     var xhr = new XMLHttpRequest();
 
     xhr.open("GET", url, true);
-    // Set the responseType to blob
     xhr.responseType = "blob";
 
     xhr.addEventListener("load", function () {
       if (xhr.status === 200) {
-        console.log("chunk retrieved");
+        console.log('chunk retrieved');
+        var contentLength = xhr.getResponseHeader('Content-Length')
 
         // Blob as response
         var blob = xhr.response;
-        console.log("Blob:" + blob + "size: " + blob.size);
+        console.log('Blob: ' + blob);
 
-        // Put the received blob into IndexedDB
-        putChunkInDB(blob, index);
+        var blobSize = blob.size;
+        if (Number(blobSize) === Number(contentLength)) {
+          console.log('chunk '+url+' retrieved successfully');
+          // Put the received blob into IndexedDB
+          putChunkInDB(blob, index);
+        } else {
+          // TODO handle retransmision
+          console.log('chunk '+url+' retrieve failed, start retransmision');
+        }
+      } else {
+        // TODO handle retransmision
+        console.log('chunk '+url+' retrieve failed, start retransmision');
       }
     }, false);
     // Send XHR
@@ -145,8 +155,8 @@ function downloadFile(url, index) {
 // Setters
 function setHelper(resource) {
   helper.concurrency = resource.concurrency || 2;
-  helper.numRetries = resource.numRetries || 2; // TODO
-
+  helper.maxRetries = resource.numRetries || 2; // TODO
+  helper.id = resource.id;
   var chunks = resource.segments;
   chunks.forEach(function (chunk) {
     var file = {
