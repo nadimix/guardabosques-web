@@ -1,7 +1,7 @@
 'use strict';
 
 var helper = {
-  concurrency: 2,
+  fileName: '',
   maxRetries: 2,
   id: '',
   chunks: []
@@ -171,6 +171,8 @@ function downloadFile(helper) {
         index = index + 1;
         fetchChunksFromDB(index, arrayId, arrayBlob);
       } else {
+        // Get the Blob url and append to the page
+        // TODO add custom location via param
         console.info(arrayBlob);
         var blobJoined = new Blob(arrayBlob);
         var j = 0;
@@ -179,7 +181,7 @@ function downloadFile(helper) {
         var link = document.createElement('a');
         link.innerHTML = 'download now';
         link.type = 'application/octet-stream';
-        link.download = 'ubuntu-14.04.2-desktop-amd64.iso',
+        link.download = helper.fileName,
         link.href = urlFile;
         document.body.appendChild(link);
         cleanDatabase(arrayId, j);
@@ -213,6 +215,7 @@ function downloadFile(helper) {
 // Setters
 function setHelper(resource) {
   helper.maxRetries = resource.numRetries || 2;
+  helper.fileName = resource.name;
   helper.id = resource.id;
   var chunks = resource.segments;
   chunks.forEach(function (chunk) {
