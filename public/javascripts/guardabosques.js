@@ -118,26 +118,8 @@ function downloadFile(helper) {
         var blob = xhr.response;
         if(checkChunkIntegrity(contentLength, blob.size, url)) {
           // Put the received blob into IndexedDB
-          console.log('Inserting: ' + chunkId + ' blob: ' + blob);
-          database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).put(blob, chunkId).onsuccess = function(event) {
-            console.info('Transaction: ' +chunkId+ ' success');
-            currentChunk = currentChunk + 1;
-            if(currentChunk < numChunks) {
-              console.info('Downloading the next chunk');
-              getChunkFile(chunks, maxRetries, currentChunk);
-            } else {
-              console.info('Download finished');
-              var arrayBlob = [];
-              var index = 0;
-              var arrayId = [];
-              chunks.forEach(function(chunk) {
-                arrayId.push(chunk.digest);
-              });
-              console.log(arrayId);
-              console.log(arrayBlob);
-              fetchChunksFromDB(index, arrayId, arrayBlob);
-            }
-          }
+          console.info('Inserting: ' + chunkId + ' blob: ' + blob);
+          insertChunkIntoDB(chunks, blob, chunkId, maxRetries, currentChunk, numChunks);
         } else {
           if(chunk.retries < maxRetries && numCandidates >= maxRetries ) {
             console.warn('Retrying because integrity test failed: ' + chunkId);
@@ -161,7 +143,34 @@ function downloadFile(helper) {
     xhr.send();
   }
 
-  function fetchChunksFromDB(index, arrayId, arrayBlob) {
+  function insertChunkIntoDB(chunks, blob, chunkId, maxRetries, currentChunk, numChunks) {
+    var insert = database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).put(blob, chunkId);
+    insert.onerror = function(event) {
+      console.info('Transaction: ' +chunkId+ ' failed, rolling back');
+      cleanDatabase(getArrayId(chunks), 0);
+    }
+    insert.onsuccess = function(event) {
+      console.info('Transaction: ' +chunkId+ ' success');
+      currentChunk = currentChunk + 1;
+      if(currentChunk < numChunks) {
+        console.info('Downloading the next chunk');
+        getChunkFile(chunks, maxRetries, currentChunk);
+      } else {
+        console.info('Download finished');
+        fetchChunksFromDB(getArrayId(chunks), 0, []);
+      }
+    }
+  }
+
+  function getArrayId(chunks) {
+    var arrayId = [];
+    chunks.forEach(function(chunk) {
+      arrayId.push(chunk.digest);
+    });
+    return arrayId;
+  }
+
+  function fetchChunksFromDB(arrayId, index, arrayBlob) {
     var id = arrayId[index];
     console.info('Fetching: ' + id);
     database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).get(id).onsuccess = function(event) {
@@ -169,13 +178,10 @@ function downloadFile(helper) {
       arrayBlob.push(event.target.result);
       if(arrayBlob.length < arrayId.length) {
         index = index + 1;
-        fetchChunksFromDB(index, arrayId, arrayBlob);
+        fetchChunksFromDB(arrayId, index, arrayBlob);
       } else {
-        // Get the Blob url and append to the page
-        // TODO add custom location via param
         console.info(arrayBlob);
         var blobJoined = new Blob(arrayBlob);
-        var j = 0;
         var urlFile = URL.createObjectURL(blobJoined);
         console.info(urlFile);
         var link = document.createElement('a');
@@ -184,7 +190,8 @@ function downloadFile(helper) {
         link.download = helper.fileName,
         link.href = urlFile;
         document.body.appendChild(link);
-        cleanDatabase(arrayId, j);
+
+        cleanDatabase(arrayId, 0);
       }
     }
   }
