@@ -42,13 +42,17 @@ function downloadHandler(resource) {
 function downloadFile(helper) {
   var indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB || window.OIndexedDB || window.msIndexedDB;
   var IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.OIDBTransaction || window.msIDBTransaction;
+  
+  if (IDBTransaction) {
+    IDBTransaction.READ_WRITE = IDBTransaction.READ_WRITE || 'readwrite';
+    IDBTransaction.READ_ONLY = IDBTransaction.READ_ONLY || 'readonly';
+  }
+
   var dbVersion = 1.0;
-
-  var database;
   var dbName = 'guardabosques';
-
   var connect = indexedDB.open(dbName, dbVersion);
   var objectStore = helper.id;
+  var database;
 
   // IndexedDB connection handlers
   connect.onerror = function(event) {
@@ -111,8 +115,8 @@ function downloadFile(helper) {
         var blob = xhr.response;
         if(checkChunkIntegrity(contentLength, blob.size, url)) {
           // Put the received blob into IndexedDB
-          var readWriteMode = typeof IDBTransaction.READ_WRITE == "undefined" ? "readwrite" : IDBTransaction.READ_WRITE;
-          var transaction = database.transaction([objectStore], readWriteMode).objectStore(objectStore).put(blob, chunkId);
+          console.log('Inserting: ' + chunkId);
+          var transaction = database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).put(blob, chunkId);
 
           transaction.onsuccess = function(event) {
             console.info('Transaction: ' +chunkId+ ' success');
@@ -122,57 +126,14 @@ function downloadFile(helper) {
               getChunkFile(chunks, maxRetries, currentChunk);
             } else {
               console.info('Download finished');
-              // TODO join downloaded chunks.
-              // TODO retrieve all chunks
-              var chunksID = [];
+              var arrayBlob = [];
+              var index = 0;
+              var arrayId = [];
               chunks.forEach(function(chunk) {
-                chunksID.push(chunk.digest);
+                arrayId.push(chunk.digest);
               });
-              console.log(chunksID);
-              // Join them
-              // fetch chunks from indexedDB
-              var arrayBlobs = [];
-              for(var j = 0; j < chunksID.length; j++) {
-                console.log('entra for, chunksID: ' + chunksID[j]);
-                transaction = database.transaction([objectStore], readWriteMode).objectStore(objectStore).get(chunksID[j]);
-                transaction.onerror = function(event) {
-                  console.error('cannot get: ' + chunksID[j]);
-                };
-                transaction.onsuccess = function(event) {
-                  arrayBlobs.push(event.target.result);
-                  console.log('arrayBlobs length: ' + arrayBlobs.length + ' arrayIDs: ' + chunksID.length);
-                  if(arrayBlobs.length === chunksID.length) {
-                    // Clean database
-                    chunksID.forEach(function(id) {
-                      transaction = database.transaction([objectStore], readWriteMode).objectStore(objectStore).delete(id);
-                      transaction.onerror = function(event) {
-                        console.error('delete: ' +id+ ' failed');
-                      };
-                      transaction.onsuccess = function(event) {
-                        console.info('delete: ' +id+ ' success');
-                      };
-                    });
-                    // Create join blob
-                    console.log('joining blobs');
-                    var joinBlob = new Blob(arrayBlobs);
-                    // Get Blob Url
-                    var urlFile = URL.createObjectURL(blob);
-                    console.log('blob url: ' + urlFile);
-                    window.location.assign(urlFile);
-                  }
-                };
-              }
-              // TODO move this after fetch all chunk of data from db
-              // Clean database
-              /*chunksID.forEach(function(id) {
-                transaction = database.transaction([objectStore], readWriteMode).objectStore(objectStore).delete(id);
-                transaction.onerror = function(event) {
-                  console.error('delete: ' +id+ ' failed');
-                };
-                transaction.onsuccess = function(event) {
-                  console.info('delete: ' +id+ ' success');
-                };
-              });*/
+              console.log(arrayId);
+              fetchChunksFromDB(index, arrayId, arrayBlob);
             }
           }
           transaction.onerror = function(event) {
@@ -180,6 +141,7 @@ function downloadFile(helper) {
           }
         } else {
           if(chunk.retries < maxRetries && numCandidates >= maxRetries ) {
+            console.warn('Retrying: ' + chunkId);
             chunk.retries = chunk.retries + 1;
             getChunkFile(chunks, maxRetries, currentChunk);
           } else {
@@ -197,6 +159,40 @@ function downloadFile(helper) {
     };
     // Send XHR
     xhr.send();
+  }
+
+  function fetchChunksFromDB(index, arrayId, arrayBlob) {
+    var id = arrayId[index];
+    console.info('Fetching: ' + id);
+    database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).get(id).onsuccess = function(event) {
+      console.info('blob #' + index + ': ' + event.target.result);
+      arrayBlob.push(event.target.result);
+      console.log(arrayBlob);
+      console.log('arrayBlob length: ' + arrayBlob.length + ' arrayId: ' + arrayId.length);
+      if(arrayBlob.length < arrayId.length) {
+        index = index + 1;
+        fetchChunksFromDB(index, arrayId, arrayBlob);
+      } else {
+        // cleanDatabase(arrayId);
+        console.info(arrayBlob);
+        var blobJoined = new Blob(arrayBlob);
+        var urlFile = URL.createObjectURL(blobJoined);
+        console.info(urlFile);
+        // window.location.assign(urlFile);
+      }
+    }
+  }
+
+  function cleanDatabase(arrayId) {
+    arrayId.forEach(function(id) {
+      var transaction = database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).delete(id);
+      transaction.onerror = function(event) {
+        console.error('delete: ' +id+ ' failed');
+      };
+      transaction.onsuccess = function(event) {
+        console.info('delete: ' +id+ ' success');
+      };
+    });
   }
 
   function checkChunkIntegrity(contentLength, blobSize, url) {
