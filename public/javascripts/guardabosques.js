@@ -49,22 +49,25 @@ function downloadFile(helper) {
   }
 
   var dbVersion = 1.0;
-  var dbName = 'guardabosques';
+  var dbName = 'guardabosques_' + Date.now();
   var connect = indexedDB.open(dbName, dbVersion);
   var objectStore = helper.id;
   var database;
 
   // IndexedDB connection handlers
   connect.onerror = function(event) {
-    console.error("Error creating/accessing IndexedDB database");
+    console.error("Error creating/accessing IndexedDB database: " + event);
   };
 
   connect.onsuccess = function(event) {
-    console.info("Success creating/accessing IndexedDB database");
+    console.info("Success creating/accessing IndexedDB database: " + event);
 
     database = connect.result;
     database.onerror = function (event) {
-      console.error("Error creating/accessing IndexedDB database");
+      console.error("Error creating/accessing IndexedDB database: " + event);
+    };
+    database.onblocked = function (event) {
+      console.log('Database blocked: ' + event);
     };
 
     // Provisional solution for Chrome using objectStore instead. Will be deprecated
@@ -115,14 +118,12 @@ function downloadFile(helper) {
         var blob = xhr.response;
         if(checkChunkIntegrity(contentLength, blob.size, url)) {
           // Put the received blob into IndexedDB
-          console.log('Inserting: ' + chunkId);
-          var transaction = database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).put(blob, chunkId);
-
-          transaction.onsuccess = function(event) {
+          console.log('Inserting: ' + chunkId + ' blob: ' + blob);
+          database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).put(blob, chunkId).onsuccess = function(event) {
             console.info('Transaction: ' +chunkId+ ' success');
-            console.info('Retrieving the next chunk if any');
             currentChunk = currentChunk + 1;
             if(currentChunk < numChunks) {
+              console.info('Downloading the next chunk');
               getChunkFile(chunks, maxRetries, currentChunk);
             } else {
               console.info('Download finished');
@@ -133,15 +134,13 @@ function downloadFile(helper) {
                 arrayId.push(chunk.digest);
               });
               console.log(arrayId);
+              console.log(arrayBlob);
               fetchChunksFromDB(index, arrayId, arrayBlob);
             }
           }
-          transaction.onerror = function(event) {
-            console.error('Transaction: ' +chunkId+ ' failed');
-          }
         } else {
           if(chunk.retries < maxRetries && numCandidates >= maxRetries ) {
-            console.warn('Retrying: ' + chunkId);
+            console.warn('Retrying because integrity test failed: ' + chunkId);
             chunk.retries = chunk.retries + 1;
             getChunkFile(chunks, maxRetries, currentChunk);
           } else {
@@ -150,6 +149,7 @@ function downloadFile(helper) {
         }
       } else {
         if(chunk.retries < maxRetries) {
+          console.warn('Retrying because not 200 status code: ' + chunkId);
           chunk.retries = chunk.retries + 1;
           getChunkFile(chunks, maxRetries, currentChunk);
         } else {
@@ -167,32 +167,37 @@ function downloadFile(helper) {
     database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).get(id).onsuccess = function(event) {
       console.info('blob #' + index + ': ' + event.target.result);
       arrayBlob.push(event.target.result);
-      console.log(arrayBlob);
-      console.log('arrayBlob length: ' + arrayBlob.length + ' arrayId: ' + arrayId.length);
       if(arrayBlob.length < arrayId.length) {
         index = index + 1;
         fetchChunksFromDB(index, arrayId, arrayBlob);
       } else {
-        // cleanDatabase(arrayId);
         console.info(arrayBlob);
         var blobJoined = new Blob(arrayBlob);
+        var j = 0;
         var urlFile = URL.createObjectURL(blobJoined);
         console.info(urlFile);
-        // window.location.assign(urlFile);
+        var link = document.createElement('a');
+        link.innerHTML = 'download now';
+        link.type = 'application/octet-stream';
+        link.download = 'ubuntu-14.04.2-desktop-amd64.iso',
+        link.href = urlFile;
+        document.body.appendChild(link);
+        cleanDatabase(arrayId, j);
       }
     }
   }
 
-  function cleanDatabase(arrayId) {
-    arrayId.forEach(function(id) {
-      var transaction = database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).delete(id);
-      transaction.onerror = function(event) {
-        console.error('delete: ' +id+ ' failed');
-      };
-      transaction.onsuccess = function(event) {
-        console.info('delete: ' +id+ ' success');
-      };
-    });
+  function cleanDatabase(arrayId, index) {
+    var id = arrayId[index];
+    database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).delete(id).onsuccess = function(event) {
+      console.info('delete: ' +id+ ' success');
+      index = index + 1;
+      if(index < arrayId.length) {
+        cleanDatabase(arrayId, index);
+      } else {
+        console.info('Database cleaned successfully');
+      }
+    }
   }
 
   function checkChunkIntegrity(contentLength, blobSize, url) {
