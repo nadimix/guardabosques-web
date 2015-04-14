@@ -42,7 +42,7 @@ function downloadHandler(resource) {
 function downloadFile(helper) {
   var indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB || window.OIndexedDB || window.msIndexedDB;
   var IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.OIDBTransaction || window.msIDBTransaction;
-  
+
   if (IDBTransaction) {
     IDBTransaction.READ_WRITE = IDBTransaction.READ_WRITE || 'readwrite';
     IDBTransaction.READ_ONLY = IDBTransaction.READ_ONLY || 'readonly';
@@ -111,6 +111,19 @@ function downloadFile(helper) {
     xhr.open("GET", url, true);
     xhr.responseType = "blob";
 
+    // Check for errors at network level
+    xhr.onerror = function(event) {
+      console.error('Error connecting to the server: ' + url + ' ' + event +
+      ' Retrying with another candidate...');
+      if(chunk.retries < maxRetries && maxRetries <= numCandidates) {
+        console.warn('Retrying because integrity test failed: ' + chunkId);
+        chunk.retries = chunk.retries + 1;
+        getChunkFile(chunks, maxRetries, currentChunk);
+      } else {
+        console.error('Error downloadin the file');
+      }
+    }
+
     // When start downloading
     xhr.onload = function(event) {
       if(xhr.status === 200) {
@@ -121,7 +134,7 @@ function downloadFile(helper) {
           console.info('Inserting: ' + chunkId + ' blob: ' + blob);
           insertChunkIntoDB(chunks, blob, chunkId, maxRetries, currentChunk, numChunks);
         } else {
-          if(chunk.retries < maxRetries && numCandidates >= maxRetries ) {
+          if(chunk.retries < maxRetries && maxRetries <= numCandidates) {
             console.warn('Retrying because integrity test failed: ' + chunkId);
             chunk.retries = chunk.retries + 1;
             getChunkFile(chunks, maxRetries, currentChunk);
