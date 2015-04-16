@@ -2,7 +2,7 @@ module.exports = [
   {
     id: "1b305d585b1918f297164add46784116",
     name: "ubuntu-14.04.2-desktop-amd64.iso",
-    segments: [
+    chunks: [
       {
         digest: '0dad187e760636d11563b452f2d0a642',
         candidates: [
@@ -40,7 +40,7 @@ module.exports = [
   {
     id: "0db391f587a4610373fbb714c05d2456",
     name: "debian-7.8.0-amd64-i386-netinst.iso",
-    segments: [
+    chunks: [
       {
         digest: '211d38f3ff1971515be63ab912f2820f',
         candidates: [

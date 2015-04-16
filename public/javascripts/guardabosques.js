@@ -1,11 +1,6 @@
 'use strict';
 
-var helper = {
-  fileName: '',
-  maxRetries: 2,
-  id: '',
-  chunks: []
-};
+var resource;
 
 function guardabosques(url) {
   $(document).ready(function () {
@@ -20,9 +15,9 @@ function resourceHandler(url) {
     type: 'GET',
     url: url,
     success: function(data) {
-      var resource = data;
-      console.log('json: ' + JSON.stringify(resource));
-      downloadHandler(resource);
+      resource = data;
+      console.log('resource: ' + JSON.stringify(resource));
+      downloadFile(resource);
     },
     dataType: 'json',
     async: true
@@ -30,16 +25,8 @@ function resourceHandler(url) {
 }
 // End resource fetch
 
-/** Download handler **/
-function downloadHandler(resource) {
-  setHelper(resource);
-  console.log('helper: ' + JSON.stringify(helper));
-  downloadFile(helper);
-}
-// End download handler
-
 // Downloads a single file into a blob
-function downloadFile(helper) {
+function downloadFile(resource) {
   var indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB || window.OIndexedDB || window.msIndexedDB;
   var IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.OIDBTransaction || window.msIDBTransaction;
 
@@ -51,7 +38,7 @@ function downloadFile(helper) {
   var dbVersion = 1.0;
   var dbName = 'guardabosques_' + Date.now();
   var connect = indexedDB.open(dbName, dbVersion);
-  var objectStore = helper.id;
+  var objectStore = resource.id;
   var database;
 
   // IndexedDB connection handlers
@@ -76,15 +63,15 @@ function downloadFile(helper) {
         var setVersion = database.setVersion(dbVersion);
         setVersion.onsuccess = function () {
           createObjectStore(database);
-          getChunkFile(helper.chunks, helper.maxRetries, 0);
+          getChunkFile(resource.chunks, 0, 0);
         };
       }
       else {
-        getChunkFile(helper.chunks, helper.maxRetries, 0);
+        getChunkFile(resource.chunks, 0, 0);
       }
     }
     else {
-      getChunkFile(helper.chunks, helper.maxRetries, 0);
+      getChunkFile(resource.chunks, 0, 0);
     }
   };
 
@@ -99,13 +86,14 @@ function downloadFile(helper) {
       database.createObjectStore(objectStore);
   }
 
-  function getChunkFile(chunks, maxRetries, currentChunk) {
+  function getChunkFile(chunks, currentChunk, retries) {
     var chunk = chunks[currentChunk];
-    var url = chunk.candidates[chunk.retries];
+    var url = chunk.candidates[retries];
     var numChunks = chunks.length;
     var chunkId = chunk.digest;
     var numCandidates = chunk.candidates.length;
 
+    console.log('chunk digest-id: ' + chunkId);
     // Create XHR
     var xhr = new XMLHttpRequest();
     xhr.open("GET", url, true);
@@ -114,11 +102,11 @@ function downloadFile(helper) {
     // Check for errors at network level
     xhr.onerror = function(event) {
       console.error('Error connecting to the server: ' + url + ' ' + event +
-      ' Retrying with another candidate...');
-      if(chunk.retries < maxRetries && maxRetries <= numCandidates) {
+      ' Retrying with another candidate... for: ' + chunkId);
+      if(retries < numCandidates) {
         console.warn('Retrying because integrity test failed: ' + chunkId);
-        chunk.retries = chunk.retries + 1;
-        getChunkFile(chunks, maxRetries, currentChunk);
+        retries = retries + 1;
+        getChunkFile(chunks, currentChunk, retries);
       } else {
         console.error('Error downloadin the file');
       }
@@ -126,27 +114,29 @@ function downloadFile(helper) {
 
     // When start downloading
     xhr.onload = function(event) {
+      console.warn('chunks: ' + chunks);
       if(xhr.status === 200) {
         var contentLength = xhr.getResponseHeader('Content-Length');
         var blob = xhr.response;
         if(checkChunkIntegrity(contentLength, blob.size, url)) {
           // Put the received blob into IndexedDB
           console.info('Inserting: ' + chunkId + ' blob: ' + blob);
-          insertChunkIntoDB(chunks, blob, chunkId, maxRetries, currentChunk, numChunks);
+          insertChunkIntoDB(chunks, blob, chunkId, currentChunk, retries, numChunks);
         } else {
-          if(chunk.retries < maxRetries && maxRetries <= numCandidates) {
+          if(retries < numCandidates) {
             console.warn('Retrying because integrity test failed: ' + chunkId);
-            chunk.retries = chunk.retries + 1;
-            getChunkFile(chunks, maxRetries, currentChunk);
+            retries = retries + 1;
+            getChunkFile(chunks, currentChunk, retries);
           } else {
           console.error('chunk cannot be downloaded');
           }
         }
       } else {
-        if(chunk.retries < maxRetries) {
+        console.warn('num candidates: ' + numCandidates + ' chunk retries: ' + retries);
+        if(retries < numCandidates) {
           console.warn('Retrying because not 200 status code: ' + chunkId);
-          chunk.retries = chunk.retries + 1;
-          getChunkFile(chunks, maxRetries, currentChunk);
+          retries = retries + 1;
+          getChunkFile(chunks, currentChunk, retries);
         } else {
           console.error('chunk reached maxRetries');
         }
@@ -156,7 +146,7 @@ function downloadFile(helper) {
     xhr.send();
   }
 
-  function insertChunkIntoDB(chunks, blob, chunkId, maxRetries, currentChunk, numChunks) {
+  function insertChunkIntoDB(chunks, blob, chunkId, currentChunk, retries, numChunks) {
     var insert = database.transaction([objectStore], IDBTransaction.READ_WRITE).objectStore(objectStore).put(blob, chunkId);
     insert.onerror = function(event) {
       console.info('Transaction: ' +chunkId+ ' failed, rolling back');
@@ -167,7 +157,7 @@ function downloadFile(helper) {
       currentChunk = currentChunk + 1;
       if(currentChunk < numChunks) {
         console.info('Downloading the next chunk');
-        getChunkFile(chunks, maxRetries, currentChunk);
+        getChunkFile(chunks, currentChunk, 0);
       } else {
         console.info('Download finished');
         fetchChunksFromDB(getArrayId(chunks), 0, []);
@@ -200,7 +190,7 @@ function downloadFile(helper) {
         var link = document.createElement('a');
         link.innerHTML = 'download now';
         link.type = 'application/octet-stream';
-        link.download = helper.fileName,
+        link.download = resource.name,
         link.href = urlFile;
         document.body.appendChild(link);
 
@@ -231,21 +221,3 @@ function downloadFile(helper) {
     }
   }
 }
-
-// Setters
-function setHelper(resource) {
-  helper.maxRetries = resource.numRetries || 2;
-  helper.fileName = resource.name;
-  helper.id = resource.id;
-  var chunks = resource.segments;
-  chunks.forEach(function (chunk) {
-    var file = {
-      downloaded: false,
-      retries: 0,
-      digest: chunk.digest,
-      candidates: chunk.candidates
-    }
-    helper.chunks.push(file);
-  });
-}
-// End setters
