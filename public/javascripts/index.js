@@ -9,7 +9,6 @@
     $('#resource > span').click(function(event){
       event.preventDefault();
       var resourceID =  $(this).attr('id');
-      console.log(resourceID);
       var url = '/files/' + resourceID;
       guardabosques(url);
     });
