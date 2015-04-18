@@ -3,38 +3,37 @@
 // Inizialization
 function guardabosques (url) {
   $(document).ready(function () {
-    const indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB || window.OIndexedDB || window.msIndexedDB;
-    const IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.OIDBTransaction || window.msIDBTransaction;
-    var database;
     var resource;
+    var blobs = [];
     // Fetch resource.json
     getFile(url, 'json').then(function(response) {
       resource = response;
       console.log('Success!', response);
-      // Open the DataBase
-      return openDb();
+      var chunks = resource.chunks;
+      return chunks.map(downloadBlobs).reduce(function(sequence, blobPromise) {
+        return sequence.then(function() {
+          return blobPromise;
+        }).catch(function(error) {
+          console.error('Failed!', error);
+        }).then(function(blob) {
+          blobs.push(blob);
+          console.log('blob', blob);
+        }, function(err) {
+          console.error(err);
+        });
+      }, Promise.resolve());
     }).catch(function(error) {
       console.error('Failed!', error);
-    }).then(function(result){
-      database = result;
-      console.log('Success!', result);
-      // fetch the chunks
-      var chunks = resource.chunks;
-      return Promise.all(
-        chunks.map(downloadBlobs) // Array of promises
-      )
-    }).then(function(blobs) {
+    }).then(function() {
       console.log('Success!', blobs);
-      let blobJoined = new Blob(blobs);
-      let urlFile = URL.createObjectURL(blobJoined);
-      console.log(urlFile);
-      let link = document.createElement('a');
-      link.innerHTML = 'download now';
-      link.type = 'application/octet-stream';
-      link.download = resource.name,
-      link.href = urlFile;
-      document.body.appendChild(link);
-    }).then(function(){
+      // Join the array of blobs into a new blob
+      return joinBlobs(blobs);
+    }).then(function(blob) {
+      console.log('Success!', blob);
+      // generate the blob Url and append it to the page
+      var url = URL.createObjectURL(blob);
+      return appendBlobURL(url, resource.name);
+    }).then(function() {
       console.info('Finished!');
     }).catch(function(error) {
       console.error('Failed!', error);
@@ -43,72 +42,77 @@ function guardabosques (url) {
 }
 
 // Fetch the resource
-function getFile(url, responseType, id, digest) {
+function getFile(resource, responseType, retries) {
   return new Promise(function(resolve, reject) {
-    let req = new XMLHttpRequest();
+    var req = new XMLHttpRequest();
+    var numCandidates = 0;
+    var url;
+    var id;
+    if(responseType === 'blob') {
+      id = resource.id;
+      url = resource.candidates[retries];
+      req.responseType = responseType;
+      numCandidates = resource.candidates.length;
+    } else {
+      url = resource;
+      req.responseType = 'json';
+    }
     req.open('GET', url);
-    req.responseType = responseType === 'json' ? 'json' : 'blob';
 
     req.onload = function() {
       if(req.status == 200) {
-        if(req.responseType === 'blob') {
-          console.log(req.response);
-          // resolve([req.response, id, digest]);
           resolve(req.response);
-        } else {
-          resolve(req.response);
-        }
       } else {
-        reject(Error(req.statusText));
+        // Retry if possible
+        retries = retries + 1;
+        if(numCandidates > 0 && numCandidates > retries) {
+          console.warn('Retrying ' + retries, resource);
+          resolve(getFile(resource, responseType, retries));
+        } else {
+          reject(Error(req.statusText));
+        }
       }
     };
     req.onerror = function() {
-      reject(Error('Network Error'));
+      // Retry if possible
+      retries = retries + 1;
+      if(numCandidates > 0 && numCandidates > retries) {
+        console.warn('Retrying ' + retries, resource);
+        resolve(getFile(resource, responseType, retries));
+      } else {
+        reject(Error('Network Error'));
+      }
     };
     req.send();
   });
 }
 
-// Open Database
-function openDb() {
+// Blob download handler
+function downloadBlobs(chunks) {
+  return getFile(chunks, 'blob', 0);
+}
+
+// Create a blob representation of the original file
+function joinBlobs(blobs) {
   return new Promise(function(resolve, reject) {
-    var dbName = 'guardabosques_' + Date.now();
-    var dbVersion = 1.0;
-    var connect = indexedDB.open(dbName, dbVersion);
-
-    connect.onsuccess = function(event) {
-      resolve(this.result);
-    }
-    connect.onerror = function(event) {
-      reject(Error("Database Open Error"));
-    }
-    connect.onupgradeneeded = function(event) {
-      var store = event.currentTarget.result.createObjectStore(
-        dbName, { keyPath: 'id', autoIncrement: true });
-
-      store.createIndex('chunkid', 'chunkid', { unique: true });
-      store.createIndex('blob', 'blob', { unique: true });
-      resolve('connect.onupgradeneeded');
+    var blob = new Blob(blobs);
+    if (blob) {
+      resolve(blob);
+    } else {
+      reject(Error("Couldn't join the downloaded blobs"));
     }
   });
 }
 
-// Blob download handler
-function downloadBlobs(chunks) {
-  return getFile(chunks.candidates[0], 'blob', chunks.id, chunks.digest);
-}
-
-// Array helper
-function getArray(element) {
+// Appends the blob Url to a download link into the page
+function appendBlobURL(url, name) {
   return new Promise(function(resolve, reject) {
-    if(candidates.length > 0) {
-      resolve({
-        'candidates': element.candidates,
-        'id': element.id,
-        'digest': element.diget
-      });
-    } else {
-      reject(Error('No candidates'));
-    }
+    var link = document.createElement('a');
+    link.innerHTML = 'download now';
+    link.type = 'application/octet-stream';
+    link.download = name,
+    link.href = url;
+    document.body.appendChild(link);
+    resolve();
   });
 }
