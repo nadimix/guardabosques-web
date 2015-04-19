@@ -2,3 +2,4 @@
 node_modules
 *.rdb
 *.log
+.DS_Store
