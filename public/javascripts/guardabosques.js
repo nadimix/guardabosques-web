@@ -1,42 +1,20 @@
 'use strict';
 
+let queue;
+let destination = [];
+let finished;
+
 // Inizialization
-function guardabosques (url) {
+function guardabosques (url, maxDownloads) {
   $(document).ready(function () {
     var resource;
     var blobs = [];
     // Fetch resource.json
     getFile(url, 'json').then(function(response) {
-      resource = response;
       console.log('Success!', response);
-      var chunks = resource.chunks;
-      return chunks.map(downloadBlobs).reduce(function(sequence, blobPromise) {
-        return sequence.then(function() {
-          return blobPromise;
-        }).catch(function(error) {
-          console.error('Failed!', error);
-        }).then(function(blob) {
-          blobs.push(blob);
-          console.log('blob', blob);
-        }, function(err) {
-          console.error(err);
-        });
-      }, Promise.resolve());
-    }).catch(function(error) {
-      console.error('Failed!', error);
-    }).then(function() {
-      console.log('Success!', blobs);
-      // Join the array of blobs into a new blob
-      return joinBlobs(blobs);
-    }).then(function(blob) {
-      console.log('Success!', blob);
-      // generate the blob Url and append it to the page
-      var url = URL.createObjectURL(blob);
-      return appendBlobURL(url, resource.name);
-    }).then(function() {
-      console.info('Finished!');
-    }).catch(function(error) {
-      console.error('Failed!', error);
+      queue = response.chunks;
+      var fileName = response.name;
+      return downloadService(maxDownloads, fileName);
     });
   });
 }
@@ -65,7 +43,7 @@ function getFile(resource, responseType, retries) {
       } else {
         // Retry if possible
         retries = retries + 1;
-        if(numCandidates > 0 && numCandidates > retries) {
+        if (numCandidates > 0 && numCandidates > retries) {
           console.warn('Retrying ' + retries, resource);
           resolve(getFile(resource, responseType, retries));
         } else {
@@ -74,7 +52,6 @@ function getFile(resource, responseType, retries) {
       }
     };
     req.onerror = function() {
-      // Retry if possible
       retries = retries + 1;
       if(numCandidates > 0 && numCandidates > retries) {
         console.warn('Retrying ' + retries, resource);
@@ -85,6 +62,98 @@ function getFile(resource, responseType, retries) {
     };
     req.send();
   });
+}
+
+function downloadService(maxDownloads, fileName) {
+  let activeDowns = 0;
+  let finished = false;
+  let numChunks = queue.length;
+  console.log(resource);
+  if (maxDownloads === 0 || maxDownloads > numChunks) {
+    maxDownloads = numChunks;
+  }
+  console.log('Num Chunks to download: ' + numChunks + ' concurrents: ' + maxDownloads);
+  for (let i = 0; i < maxDownloads; i++) {
+    getFileNotPromised('blob', 0, numChunks, false, fileName);
+  }
+}
+
+function joinChunks(chunks) {
+  console.log('chunks', chunks);
+  let blobs = [];
+  for (let i = 0; i < chunks.length; i++) {
+    blobs[chunks[i].id] = chunks[i].blob;
+  }
+  return new Blob(blobs);
+}
+
+// Fetch the resource
+function getFileNotPromised(responseType, retries, numChunks, retry, fileName) {
+  let req = new XMLHttpRequest();
+  let numCandidates = 0;
+  let url;
+  let id;
+  let resource;
+  console.log('destination.length', destination.length);
+  if (queue.length > 0) {
+    if (responseType === 'blob' && !retry) {
+      resource = queue.shift();
+      console.log('resource', resource);
+      console.log('queue', queue);
+      id = resource.id;
+      url = resource.candidates[retries];
+      req.responseType = responseType;
+      numCandidates = resource.candidates.length;
+    } else if (responseType === 'blob' && retry) {
+      resource = queue;
+      id = resource.id;
+      url = resource.candidates[retries];
+      req.responseType = responseType;
+      numCandidates = resource.candidates.length;
+    } else {
+      url = queue;
+      req.responseType = 'json';
+    }
+    req.open('GET', url);
+
+    req.onload = function() {
+      if (req.status == 200) {
+        let chunk = {
+          id: id,
+          blob: req.response
+        }
+        destination.push(chunk);
+        getFileNotPromised(responseType, retries, numChunks, false, fileName);
+      } else {
+        // Retry if possible
+        retries = retries + 1;
+        if(numCandidates > 0 && numCandidates > retries) {
+          console.warn('Retrying ' + retries, resource);
+          getFileNotPromised(responseType, retries, numChunks, true, fileName);
+        } else {
+          console.error(Error(req.statusText));
+        }
+      }
+    };
+    req.onerror = function() {
+      // Retry if possible
+      retries = retries + 1;
+      if (numCandidates > 0 && numCandidates > retries) {
+        console.warn('Retrying ' + retries, resource);
+        getFileNotPromised(responseType, retries, numChunks, true, fileName);
+      } else {
+        console.error(Error('Network Error'));
+      }
+    };
+    req.send();
+  } else if (destination.length === numChunks) {
+    finished = true;
+    console.info('All chunks has been downloaded');
+    let fileBlob = joinChunks(destination);
+    console.log('Joint blob', fileBlob);
+    let url = URL.createObjectURL(fileBlob);
+    appendBlobURL(url, fileName);
+  }
 }
 
 // Blob download handler
@@ -110,7 +179,7 @@ function appendBlobURL(url, name) {
     var link = document.createElement('a');
     link.innerHTML = 'download now';
     link.type = 'application/octet-stream';
-    link.download = name,
+    link.download = name;
     link.href = url;
     document.body.appendChild(link);
     resolve();

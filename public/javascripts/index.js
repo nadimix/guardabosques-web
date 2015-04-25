@@ -8,9 +8,10 @@
   function clickResource() {
     $('#resource > span').click(function(event){
       event.preventDefault();
-      var resourceID =  $(this).attr('id');
-      var url = '/files/' + resourceID;
-      guardabosques(url);
+      let resourceID =  $(this).attr('id');
+      let url = '/files/' + resourceID;
+      let maxDownloads = 0;
+      guardabosques(url, maxDownloads);
     });
   }
 })();
