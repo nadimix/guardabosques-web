@@ -10,7 +10,7 @@
       event.preventDefault();
       let resourceID =  $(this).attr('id');
       let url = '/files/' + resourceID;
-      let maxDownloads = 0;
+      let maxDownloads = 4;
       guardabosques(url, maxDownloads);
     });
   }

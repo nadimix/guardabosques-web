@@ -1,182 +1,120 @@
 'use strict';
 
+// Global variables
 let queue;
-let destination = [];
-let finished;
+let blobs = [];
+let filename;
 
-// Inizialization
+// Main function
 function guardabosques (url, maxDownloads) {
   $(document).ready(function () {
-    var resource;
-    var blobs = [];
-    // Fetch resource.json
-    getFile(url, 'json').then(function(response) {
-      console.log('Success!', response);
+    getManifest(url).then(function (response) {
+      console.info('Success downloading the manifest!');
       queue = response.chunks;
-      var fileName = response.name;
-      return downloadService(maxDownloads, fileName);
+      filename = response.name;
+      return downloadHandler(maxDownloads);
+    }).catch(function (error) {
+      console.error(error);
     });
   });
 }
 
-// Fetch the resource
-function getFile(resource, responseType, retries) {
-  return new Promise(function(resolve, reject) {
-    var req = new XMLHttpRequest();
-    var numCandidates = 0;
-    var url;
-    var id;
-    if(responseType === 'blob') {
-      id = resource.id;
-      url = resource.candidates[retries];
-      req.responseType = responseType;
-      numCandidates = resource.candidates.length;
-    } else {
-      url = resource;
-      req.responseType = 'json';
-    }
+// Fetch the manifest
+function getManifest(url) {
+  return new Promise(function (resolve, reject) {
+    let req = new XMLHttpRequest();
+    req.responseType = 'json';
     req.open('GET', url);
-
-    req.onload = function() {
+    req.onload = function () {
       if(req.status == 200) {
-          resolve(req.response);
+        resolve(req.response);
       } else {
-        // Retry if possible
-        retries = retries + 1;
-        if (numCandidates > 0 && numCandidates > retries) {
-          console.warn('Retrying ' + retries, resource);
-          resolve(getFile(resource, responseType, retries));
-        } else {
-          reject(Error(req.statusText));
-        }
+        reject(Error(req.statusText));
       }
     };
-    req.onerror = function() {
-      retries = retries + 1;
-      if(numCandidates > 0 && numCandidates > retries) {
-        console.warn('Retrying ' + retries, resource);
-        resolve(getFile(resource, responseType, retries));
-      } else {
-        reject(Error('Network Error'));
-      }
+    req.onerror = function () {
+      reject(Error('Network Error'));
     };
     req.send();
   });
 }
 
-function downloadService(maxDownloads, fileName) {
-  let activeDowns = 0;
-  let finished = false;
+// Download management
+function downloadHandler(maxDownloads) {
   let numChunks = queue.length;
-  console.log(resource);
   if (maxDownloads === 0 || maxDownloads > numChunks) {
     maxDownloads = numChunks;
   }
-  console.log('Num Chunks to download: ' + numChunks + ' concurrents: ' + maxDownloads);
+  console.info('Downloading: ' + numChunks + ' with ' + maxDownloads + ' concurrents');
   for (let i = 0; i < maxDownloads; i++) {
-    getFileNotPromised('blob', 0, numChunks, false, fileName);
+    getChunks(numChunks, 0, false);
   }
 }
 
-function joinChunks(chunks) {
-  console.log('chunks', chunks);
-  let blobs = [];
-  for (let i = 0; i < chunks.length; i++) {
-    blobs[chunks[i].id] = chunks[i].blob;
-  }
-  return new Blob(blobs);
-}
-
-// Fetch the resource
-function getFileNotPromised(responseType, retries, numChunks, retry, fileName) {
+// Chunks download
+function getChunks(numChunks, retries, resourceToRetry) {
   let req = new XMLHttpRequest();
-  let numCandidates = 0;
-  let url;
-  let id;
-  let resource;
-  console.log('destination.length', destination.length);
-  if (queue.length > 0) {
-    if (responseType === 'blob' && !retry) {
-      resource = queue.shift();
-      console.log('resource', resource);
-      console.log('queue', queue);
-      id = resource.id;
-      url = resource.candidates[retries];
-      req.responseType = responseType;
-      numCandidates = resource.candidates.length;
-    } else if (responseType === 'blob' && retry) {
-      resource = queue;
-      id = resource.id;
-      url = resource.candidates[retries];
-      req.responseType = responseType;
-      numCandidates = resource.candidates.length;
-    } else {
-      url = queue;
-      req.responseType = 'json';
-    }
-    req.open('GET', url);
 
-    req.onload = function() {
+  if (queue.length > 0 || retries > 0) {
+    // Sets the resource depending on if its a retransmission or not.
+    let resource = retries > 0 ? resourceToRetry : queue.shift();
+    let id = resource.id;
+    let url = resource.candidates[retries];
+    let numCandidates = resource.candidates.length;
+    console.log('Downloading', resource);
+    console.log('Remaining... ', queue.length);
+    req.responseType = 'blob';
+    req.open('GET', url);
+    req.onload = function () {
       if (req.status == 200) {
         let chunk = {
           id: id,
           blob: req.response
         }
-        destination.push(chunk);
-        getFileNotPromised(responseType, retries, numChunks, false, fileName);
+        blobs.push(chunk);
+        getChunks(numChunks, 0, null);
       } else {
         // Retry if possible
         retries = retries + 1;
         if(numCandidates > 0 && numCandidates > retries) {
           console.warn('Retrying ' + retries, resource);
-          getFileNotPromised(responseType, retries, numChunks, true, fileName);
+          getChunks(numChunks, retries, resource);
         } else {
           console.error(Error(req.statusText));
         }
       }
     };
-    req.onerror = function() {
+    req.onerror = function () {
       // Retry if possible
       retries = retries + 1;
       if (numCandidates > 0 && numCandidates > retries) {
         console.warn('Retrying ' + retries, resource);
-        getFileNotPromised(responseType, retries, numChunks, true, fileName);
+        getChunks(numChunks, retries, resource);
       } else {
         console.error(Error('Network Error'));
       }
     };
     req.send();
-  } else if (destination.length === numChunks) {
-    finished = true;
-    console.info('All chunks has been downloaded');
-    let fileBlob = joinChunks(destination);
-    console.log('Joint blob', fileBlob);
+  } else if (blobs.length === numChunks) {
+    console.info('All chunks have been downloaded');
+    let fileBlob = joinChunks(blobs);
     let url = URL.createObjectURL(fileBlob);
-    appendBlobURL(url, fileName);
+    appendBlobURL(url, filename);
   }
 }
 
-// Blob download handler
-function downloadBlobs(chunks) {
-  return getFile(chunks, 'blob', 0);
-}
-
-// Create a blob representation of the original file
-function joinBlobs(blobs) {
-  return new Promise(function(resolve, reject) {
-    var blob = new Blob(blobs);
-    if (blob) {
-      resolve(blob);
-    } else {
-      reject(Error("Couldn't join the downloaded blobs"));
-    }
-  });
+function joinChunks(chunks) {
+  let destBlobs = [];
+  for (let i = 0; i < chunks.length; i++) {
+    destBlobs[chunks[i].id] = chunks[i].blob;
+  }
+  return new Blob(destBlobs);
 }
 
 // Appends the blob Url to a download link into the page
 function appendBlobURL(url, name) {
-  return new Promise(function(resolve, reject) {
-    var link = document.createElement('a');
+  return new Promise(function (resolve, reject) {
+    let link = document.createElement('a');
     link.innerHTML = 'download now';
     link.type = 'application/octet-stream';
     link.download = name;
