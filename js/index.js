@@ -6,11 +6,28 @@
   });
 
   function clickResource() {
-    $('#resource > span').click(function(event){
+    $('.resource').find('> td').find('> button').click(function(event){
       event.preventDefault();
-      let resourceID =  $(this).attr('id');
-      let url = '/files/' + resourceID;
-      let maxDownloads = 4;
+      var url = 'https://46.101.48.218/';
+      switch ($(this).attr('id')) {
+        case "h11":
+          url = url + 'h11/';
+          break;
+        case "h2":
+          url = url + 'h2/';
+          break;
+        case "s31":
+          url = url + 's31/';
+          break;
+        default:
+          url = '';
+          console.error('bad request');
+          break;
+      }
+      var resourceID =  $(this).parent().parent().attr('id');
+      url = url + resourceID;
+      console.info('URL', url);
+      var maxDownloads = 0;
       guardabosques(url, maxDownloads);
     });
   }
