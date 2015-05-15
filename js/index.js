@@ -8,7 +8,7 @@
   function clickResource() {
     $('.resource').find('> td').find('> button').click(function(event){
       event.preventDefault();
-      var url = 'https://46.101.48.218/';
+      var url = 'https://46.101.48.218:4430/';
       switch ($(this).attr('id')) {
         case "h11":
           url = url + 'h11/';
