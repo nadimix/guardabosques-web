@@ -27,7 +27,7 @@
       var resourceID =  $(this).parent().parent().attr('id');
       url = url + resourceID;
       console.info('URL', url);
-      var maxDownloads = 0;
+      var maxDownloads = 1;
       guardabosques(url, maxDownloads);
     });
   }
