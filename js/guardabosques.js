@@ -24,8 +24,8 @@ function getManifest(url) {
   return new Promise(function (resolve, reject) {
     var req;
     req = new XMLHttpRequest();
+    req.open('GET', url, true);
     req.responseType = 'json';
-    req.open('GET', url);
     req.onload = function () {
       if (req.status === 200) {
         resolve(req.response);
@@ -61,10 +61,10 @@ function getChunks(numChunks, retries, resourceToRetry) {
     var id = resource.id;
     var url = resource.candidates[retries];
     var numCandidates = resource.candidates.length;
+    console.log('Remaining... ', queue.length + 1);
     console.log('Downloading', resource);
-    console.log('Remaining... ', queue.length);
+    req.open('GET', url, true);
     req.responseType = 'blob';
-    req.open('GET', url);
     req.onload = function () {
       if (req.status === 200) {
         var chunk = {
