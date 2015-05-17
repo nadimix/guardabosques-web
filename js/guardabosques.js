@@ -27,7 +27,7 @@ function getManifest(url) {
     req.responseType = 'json';
     req.open('GET', url);
     req.onload = function () {
-      if (req.status == 200) {
+      if (req.status === 200) {
         resolve(req.response);
       } else {
         reject(Error(req.statusText));
@@ -55,7 +55,6 @@ function downloadHandler(maxDownloads) {
 // Chunks download
 function getChunks(numChunks, retries, resourceToRetry) {
   var req = new XMLHttpRequest();
-
   if (queue.length > 0 || retries > 0) {
     // Sets the resource depending on if its a retransmission or not.
     var resource = retries > 0 ? resourceToRetry : queue.shift();
@@ -67,11 +66,11 @@ function getChunks(numChunks, retries, resourceToRetry) {
     req.responseType = 'blob';
     req.open('GET', url);
     req.onload = function () {
-      if (req.status == 200) {
+      if (req.status === 200) {
         var chunk = {
           id: id,
           blob: req.response
-        }
+        };
         blobs.push(chunk);
         getChunks(numChunks, 0, null);
       } else {
@@ -99,8 +98,8 @@ function getChunks(numChunks, retries, resourceToRetry) {
   } else if (blobs.length === numChunks) {
     console.info('All chunks have been downloaded');
     var fileBlob = joinChunks(blobs);
-    var url = URL.createObjectURL(fileBlob);
-    appendBlobURL(url, filename);
+    var urlBlob = URL.createObjectURL(fileBlob);
+    appendBlobURL(urlBlob, filename);
   }
 }
 
