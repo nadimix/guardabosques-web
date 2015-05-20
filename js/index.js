@@ -1,6 +1,6 @@
 (function() {
   'use strict';
-  var api = 'https://46.101.48.218';
+  var api = 'https://46.101.48.218:4430';
   $(document).ready(function() {
     var url = api + '/resources/';
     getManifest(url);
