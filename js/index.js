@@ -1,6 +1,6 @@
 (function() {
   'use strict';
-  var api = 'https://46.101.48.218'
+  var api = 'https://46.101.48.218';
   $(document).ready(function() {
     var url = api + '/resources/';
     getManifest(url);
@@ -25,7 +25,7 @@
       }
     };
     req.onerror = function() {
-      reject(Error('Network Error'));
+      console.error(Error('Network Error'));
     };
     req.send();
   }
