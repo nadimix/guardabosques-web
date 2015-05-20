@@ -2,9 +2,3 @@ body {
   padding: 50px;
   font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
 }
-
-a, .resource_link {
-  color: #00B7FF;
-  text-decoration: underline;
-  cursor: pointer;
-}

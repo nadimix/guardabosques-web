@@ -2,42 +2,17 @@
 
 // Global variables
 var queue;
-var blobs = [];
+var blobs;
 var filename;
+var htmlResource;
 
 // Main function
-function guardabosques(url, maxDownloads) {
-  $(document).ready(function () {
-    getManifest(url).then(function (response) {
-      console.info('Success downloading the manifest!');
-      queue = response.chunks;
-      filename = response.name;
-      return downloadHandler(maxDownloads);
-    }).catch(function (error) {
-      console.error(error);
-    });
-  });
-}
-
-// Fetch the manifest
-function getManifest(url) {
-  return new Promise(function (resolve, reject) {
-    var req;
-    req = new XMLHttpRequest();
-    req.open('GET', url, true);
-    req.responseType = 'json';
-    req.onload = function () {
-      if (req.status === 200) {
-        resolve(req.response);
-      } else {
-        reject(Error(req.statusText));
-      }
-    };
-    req.onerror = function () {
-      reject(Error('Network Error'));
-    };
-    req.send();
-  });
+function guardabosques(json, maxDownloads, resource) {
+  blobs = [];
+  queue = json.chunks;
+  filename = json.name;
+  htmlResource = resource;
+  downloadHandler(maxDownloads);
 }
 
 // Download management
@@ -99,6 +74,7 @@ function getChunks(numChunks, retries, resourceToRetry) {
     console.info('All chunks have been downloaded');
     var fileBlob = joinChunks(blobs);
     var urlBlob = URL.createObjectURL(fileBlob);
+    console.log(urlBlob);
     appendBlobURL(urlBlob, filename);
   }
 }
@@ -111,15 +87,21 @@ function joinChunks(chunks) {
   return new Blob(destBlobs);
 }
 
+function enableDownloadLink(url) {
+  htmlResource.find('button').prop('disabled', false);
+  var form = htmlResource.find('form');
+  form.prop('action', url);
+  form.find('input').prop('disabled', false);
+}
+
 // Appends the blob Url to a download link into the page
 function appendBlobURL(url, name) {
-  return new Promise(function (resolve, reject) {
-    var link = document.createElement('a');
-    link.innerHTML = 'download now';
-    link.type = 'application/octet-stream';
-    link.download = name;
-    link.href = url;
-    document.body.appendChild(link);
-    resolve();
-  });
+  console.log('entra');
+  var link = document.createElement('a');
+  link.innerHTML = 'download now';
+  link.type = 'application/octet-stream';
+  link.download = name;
+  link.href = url;
+  htmlResource.find('.download').append(link);
+  htmlResource.find('button').prop('disabled', false);
 }
