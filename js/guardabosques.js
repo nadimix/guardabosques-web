@@ -87,13 +87,6 @@ function joinChunks(chunks) {
   return new Blob(destBlobs);
 }
 
-function enableDownloadLink(url) {
-  htmlResource.find('button').prop('disabled', false);
-  var form = htmlResource.find('form');
-  form.prop('action', url);
-  form.find('input').prop('disabled', false);
-}
-
 // Appends the blob Url to a download link into the page
 function appendBlobURL(url, name) {
   console.log('entra');
