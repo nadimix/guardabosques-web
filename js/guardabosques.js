@@ -89,7 +89,6 @@ function joinChunks(chunks) {
 
 // Appends the blob Url to a download link into the page
 function appendBlobURL(url, name) {
-  console.log('entra');
   var link = document.createElement('a');
   link.innerHTML = 'download now';
   link.type = 'application/octet-stream';
