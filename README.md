@@ -1,5 +1,5 @@
 # guardabosques Web
-
+[![Code Climate](https://codeclimate.com/github/nadimix/guardabosques-web/badges/gpa.svg)](https://codeclimate.com/github/nadimix/guardabosques-web)
 ## What is this repository for? ##
 * This is a web client for the guargabosques API (https://github.com/nadimix/guardabosques-api)
 * The key element is the **guardabosques.js** plugin. It allows:
