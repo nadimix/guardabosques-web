@@ -44,16 +44,16 @@
   function clickResource() {
     $('.resource').on('click', 'button', function(event){
       event.preventDefault();
-      var url = api + '/resource/';
+      var url = api + '/resource/' + resource.attr('id');
       switch ($(this).attr('id')) {
         case "h11":
-          url = url + 'h11/';
+          url = url + '/h11';
           break;
         case "h2":
-          url = url + 'h2/';
+          url = url + '/h2';
           break;
         case "s31":
-          url = url + 's31/';
+          url = url + '/s31';
           break;
         default:
           console.error(Error('bad request'));
@@ -62,7 +62,6 @@
         var resource =  $(this).closest('.resource');
         resource.addClass('downloading');
         resource.find('button').prop('disabled', true);
-        url = url + resource.attr('id');
         getManifest(url, resource);
       });
   }
