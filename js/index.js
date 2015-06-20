@@ -44,6 +44,10 @@
   function clickResource() {
     $('.resource').on('click', 'button', function(event){
       event.preventDefault();
+      var resource =  $(this).closest('.resource');
+      resource.addClass('downloading');
+      resource.find('button').prop('disabled', true);
+      
       var url = api + '/resource/' + resource.attr('id');
       switch ($(this).attr('id')) {
         case "h11":
@@ -59,9 +63,6 @@
           console.error(Error('bad request'));
           break;
         }
-        var resource =  $(this).closest('.resource');
-        resource.addClass('downloading');
-        resource.find('button').prop('disabled', true);
         getManifest(url, resource);
       });
   }
