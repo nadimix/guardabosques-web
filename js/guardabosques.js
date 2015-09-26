@@ -51,23 +51,13 @@ function getChunks(numChunks, retries, resourceToRetry) {
       } else {
         // Retry if possible
         retries = retries + 1;
-        if (numCandidates > 0 && numCandidates > retries) {
-          console.warn('Retrying ' + retries, resource);
-          getChunks(numChunks, retries, resource);
-        } else {
-          console.error(Error(req.statusText));
-        }
+        retryDownload(numCandidates, retries, numChunks, resource);
       }
     };
     req.onerror = function () {
       // Retry if possible
       retries = retries + 1;
-      if (numCandidates > 0 && numCandidates > retries) {
-        console.warn('Retrying ' + retries, resource);
-        getChunks(numChunks, retries, resource);
-      } else {
-        console.error(Error('Network Error'));
-      }
+      retryDownload(numCandidates, retries, numChunks, resource);
     };
     req.send();
   } else if (blobs.length === numChunks) {
@@ -79,6 +69,17 @@ function getChunks(numChunks, retries, resourceToRetry) {
   }
 }
 
+// Retries download
+function retryDownload(numCandidates, retries, numChunks, resource) {
+  if (numCandidates > 0 && numCandidates > retries) {
+    console.warn('Retrying ' + retries, resource);
+    getChunks(numChunks, retries, resource);
+  } else {
+    console.error(Error('Resource: ' + resource + ' cannot be downloaded'));
+  }
+}
+
+// Joins the downloaded chunks into a Blob to be downloaded by the user
 function joinChunks(chunks) {
   var destBlobs = [];
   for (var i = 0; i < chunks.length; i++) {
